@@ -1,8 +1,10 @@
 package simpledb;
 
 import java.io.*;
-
+import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * BufferPool manages the reading and writing of pages into memory from
@@ -25,14 +27,23 @@ public class BufferPool {
     other classes. BufferPool should use the numPages argument to the
     constructor instead. */
     public static final int DEFAULT_PAGES = 50;
+    
+    private static int numPages = DEFAULT_PAGES;
+    
+    private HashMap<PageId,Page> pages;
+    
+    private ReadWriteLock rwlock;    //¶ÁÐ´Ëø
 
     /**
      * Creates a BufferPool that caches up to numPages pages.
      *
      * @param numPages maximum number of pages in this buffer pool.
      */
+    
     public BufferPool(int numPages) {
-        // some code goes here
+        this.numPages = numPages;
+        this.rwlock = new ReentrantReadWriteLock();
+        this.pages = new HashMap<PageId,Page>();
     }
     
     public static int getPageSize() {
@@ -66,8 +77,20 @@ public class BufferPool {
      */
     public  Page getPage(TransactionId tid, PageId pid, Permissions perm)
         throws TransactionAbortedException, DbException {
-        // some code goes here
-        return null;
+    	
+    	this.rwlock.readLock().lock();
+    	Page res;
+        if(this.pages.containsKey(pid))
+        	res = this.pages.get(pid);
+        else if(this.numPages == this.pages.size())
+        	throw new DbException("BufferPool is full");
+        else {
+        	DbFile file = Database.getCatalog().getDatabaseFile(pid.getTableId());
+        	res = file.readPage(pid);
+        	this.pages.put(pid, res);
+        }
+        this.rwlock.readLock().unlock();
+        return res;
     }
 
     /**
